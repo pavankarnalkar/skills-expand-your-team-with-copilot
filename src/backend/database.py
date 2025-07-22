@@ -1,15 +1,28 @@
 """
-MongoDB database configuration and setup for Mergington High School API
+Database configuration and setup for Mergington High School API
 """
 
-from pymongo import MongoClient
 from argon2 import PasswordHasher
 
-# Connect to MongoDB
-client = MongoClient('mongodb://localhost:27017/')
-db = client['mergington_high']
-activities_collection = db['activities']
-teachers_collection = db['teachers']
+# Try to connect to MongoDB, fallback to mock database if not available
+try:
+    from pymongo import MongoClient
+    
+    # Connect to MongoDB
+    client = MongoClient('mongodb://localhost:27017/', serverSelectionTimeoutMS=1000)
+    # Test the connection
+    client.admin.command('ismaster')
+    db = client['mergington_high']
+    activities_collection = db['activities']
+    teachers_collection = db['teachers']
+    print("Using MongoDB database")
+    USING_MOCK = False
+    
+except Exception as e:
+    print(f"MongoDB not available ({e}), using mock database for development")
+    from .mock_database import init_mock_database
+    activities_collection, teachers_collection = init_mock_database()
+    USING_MOCK = True
 
 # Methods
 def hash_password(password):
@@ -18,8 +31,12 @@ def hash_password(password):
     return ph.hash(password)
 
 def init_database():
-    """Initialize database if empty"""
-
+    """Initialize database if empty (only applies to MongoDB)"""
+    
+    # Skip initialization for mock database since it's already initialized
+    if USING_MOCK:
+        return
+    
     # Initialize activities if empty
     if activities_collection.count_documents({}) == 0:
         for name, details in initial_activities.items():
